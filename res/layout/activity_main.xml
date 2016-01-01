@@ -1,0 +1,30 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    style="@style/Background"
+    tools:context="com.example.findwashroom.MainActivity" >
+
+        <TextView 
+            android:layout_width="fill_parent"
+            android:layout_height="60dp"
+            android:gravity="center"
+            android:textSize="20sp"
+            android:background="#F2F2F2"
+            android:textColor="#6F6F6F"
+            android:text="@string/main_title" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/silver" />
+
+        <ListView 
+            android:id="@+id/list_washroom_line"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:listSelector="@android:color/transparent"
+            android:divider="@null" />
+        
+</LinearLayout>
