@@ -18,10 +18,12 @@ import com.tencent.mapsdk.raster.model.BitmapDescriptorFactory;
 import com.tencent.mapsdk.raster.model.LatLng;
 import com.tencent.mapsdk.raster.model.Marker;
 import com.tencent.mapsdk.raster.model.MarkerOptions;
+import com.tencent.mapsdk.raster.model.Polyline;
 import com.tencent.mapsdk.raster.model.PolylineOptions;
 import com.tencent.tencentmap.mapsdk.map.MapActivity;
 import com.tencent.tencentmap.mapsdk.map.MapView;
 import com.tencent.tencentmap.mapsdk.map.TencentMap;
+import com.tencent.tencentmap.mapsdk.map.TencentMap.OnMarkerClickListener;
 import com.tencent.tencentmap.mapsdk.map.TencentMap.OnMarkerDraggedListener;
 import com.umeng.analytics.MobclickAgent;
 import com.yhtye.findwashroom.R;
@@ -33,16 +35,21 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class ResultActivity extends MapActivity implements OnMarkerDraggedListener {
+public class ResultActivity extends MapActivity implements OnMarkerDraggedListener, 
+        OnMarkerClickListener {
 
     private MapView mapView;
     private TencentMap tencentMap;
     private MapPoint[] locations;
     private WashroomInfoWindowAdapter adapter;
+    private Polyline polyLine;
     
     private List<WalkingResultObject.Route> walkRoutes;
+    private List<CustomSearchResultData> dataList = null; 
     
     private TextView myaddress;
+    private TextView mytitile;
+    private TextView mydistance;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,26 +59,30 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     }
     
     private void init() {
+        dataList = MapSearchService.list;
+        
         mapView = (MapView)findViewById(R.id.map);
         tencentMap = mapView.getMap();
+        tencentMap.setOnMarkerClickListener(this);
         
         myaddress = (TextView)findViewById(R.id.myaddress);
+        mytitile = (TextView)findViewById(R.id.mytitile);
+        mydistance = (TextView)findViewById(R.id.mydistance1);
         
         if (locations == null) {
             locations = getCoords();
         }
-        getWalkPlan();
-    }
-    
-    /**
-     * 步行规划，只能设置起点和终点
-     */
-    protected void getWalkPlan() {
         // 设置起点和终点
         MapPoint start = locations[0];
         MapPoint destination = locations[1];
-        
-        myaddress.setText(start.getAddress());
+        showMyMap(start, destination);
+        getWalkPlan(start.changeToLocation(), destination.changeToLocation());
+    }
+    
+    protected void showMyMap(MapPoint start, MapPoint destination) {
+        mytitile.setText(destination.getName());
+        myaddress.setText(destination.getAddress());
+        mydistance.setText(destination.getDistance() + "米");
         
         if (adapter == null) {
             adapter = new WashroomInfoWindowAdapter(this);
@@ -82,12 +93,10 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         tencentMap.addMarker(new MarkerOptions()
                 .position(start.getLatlng())
                 .title(start.getAddress()) // 点击时会显示
-                .tag("我的位置")
+                .tag(start)
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.navi1))
                 .draggable(true)
                 .anchor(0.5f, 0.5f));
-        
-        addWcMarker(MapSearchService.list);
         
         tencentMap.zoomToSpan(start.getLatlng(), destination.getLatlng());
         if (destination.getDistance() > 700) {
@@ -98,10 +107,17 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             tencentMap.setZoom(17); //值越大，地图越被放大
         }
         
+        addWcMarker(dataList);
+    }
+    
+    /**
+     * 步行规划，只能设置起点和终点
+     */
+    protected void getWalkPlan(Location start, Location destination) {
         TencentSearch tencentSearch = new TencentSearch(this);
         WalkingParam walkingParam = new WalkingParam();
-        walkingParam.from(start.changeToLocation());
-        walkingParam.to(destination.changeToLocation());
+        walkingParam.from(start);
+        walkingParam.to(destination);
         tencentSearch.getDirection(walkingParam, directionResponseListener);
     }
     
@@ -120,6 +136,9 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             WalkingResultObject walkObj = (WalkingResultObject)arg2;
             if (walkObj.isStatusOk()) {
                 walkRoutes = walkObj.result.routes;
+                if (walkRoutes == null || walkRoutes.size() == 0) {
+                    return;
+                }
                 int index = 0;
                 drawSolidLine(walkRoutes.get(index).polyline);
             }
@@ -134,7 +153,7 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             tencentMap.addMarker(new MarkerOptions()
             .position(new LatLng(data.getLocation().lat, data.getLocation().lng))
             .title(data.getAddress()) // 点击时会显示
-            .tag(data.getTitle())
+            .tag(data)
             .icon(BitmapDescriptorFactory.fromResource(R.drawable.wc_90))
             .draggable(true)
             .anchor(0.5f, 0.5f));
@@ -146,9 +165,12 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
      * @param locations
      */
     protected void drawSolidLine(List<Location> locations) {
-        tencentMap.addPolyline(new PolylineOptions().
-                addAll(getLatLngs(locations)).
-                color(0xff2200ff));
+        if (polyLine != null) {
+            polyLine.remove();
+        }
+        polyLine = tencentMap.addPolyline(new PolylineOptions()
+                                            .addAll(getLatLngs(locations))
+                                            .color(0xff2200ff));
     }
     
     protected List<LatLng> getLatLngs(List<Location> locations) {
@@ -168,6 +190,7 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             String[] items = startStr.split(",", 3);
             if (items.length == 3) {
                 start = new MapPoint(Float.valueOf(items[0]),Float.valueOf(items[1]), items[2]);
+                start.setName("我的位置");
             }
         }
         MapPoint destination = null;
@@ -218,5 +241,28 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     public void onPause() {
         super.onPause();
         MobclickAgent.onPause(this);
+    }
+
+    @Override
+    public boolean onMarkerClick(Marker marker) {
+        // TODO Auto-generated method stub 
+        Object obj = marker.getTag();
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof CustomSearchResultData) {
+            CustomSearchResultData data = (CustomSearchResultData) obj;
+            mytitile.setText(data.getTitle());
+            myaddress.setText(data.getAddress());
+            mydistance.setText((int)data.get_distance() + "米");
+            
+            getWalkPlan(locations[0].changeToLocation(), data.getLocation());
+        } else if (obj instanceof MapPoint) {
+            // 我的位置
+            MapPoint data = (MapPoint)obj;
+            mytitile.setText(data.getName());
+            myaddress.setText(data.getAddress());
+        } 
+        return false;
     }
 }
