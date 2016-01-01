@@ -14,6 +14,10 @@ import com.tencent.lbssearch.httpresponse.HttpResponseListener;
 import com.tencent.lbssearch.object.Location;
 import com.tencent.lbssearch.object.param.WalkingParam;
 import com.tencent.lbssearch.object.result.WalkingResultObject;
+import com.tencent.map.geolocation.TencentLocation;
+import com.tencent.map.geolocation.TencentLocationListener;
+import com.tencent.map.geolocation.TencentLocationManager;
+import com.tencent.map.geolocation.TencentLocationRequest;
 import com.tencent.mapsdk.raster.model.BitmapDescriptorFactory;
 import com.tencent.mapsdk.raster.model.LatLng;
 import com.tencent.mapsdk.raster.model.Marker;
@@ -36,13 +40,21 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class ResultActivity extends MapActivity implements OnMarkerDraggedListener, 
-        OnMarkerClickListener {
+        OnMarkerClickListener, TencentLocationListener {
 
     private MapView mapView;
     private TencentMap tencentMap;
-    private MapPoint[] locations;
+//    private MapPoint[] locations;
     private WashroomInfoWindowAdapter adapter;
+    // 路线
     private Polyline polyLine;
+    
+    private MapPoint startPoint;
+    private MapPoint destinationPoint;
+    private Marker startMarker;
+    
+    private TencentLocationManager mLocationManager;
+    private int mLevel = TencentLocationRequest.REQUEST_LEVEL_NAME;
     
     private List<WalkingResultObject.Route> walkRoutes;
     private List<CustomSearchResultData> dataList = null; 
@@ -69,14 +81,13 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         mytitile = (TextView)findViewById(R.id.mytitile);
         mydistance = (TextView)findViewById(R.id.mydistance1);
         
-        if (locations == null) {
-            locations = getCoords();
-        }
-        // 设置起点和终点
-        MapPoint start = locations[0];
-        MapPoint destination = locations[1];
-        showMyMap(start, destination);
-        getWalkPlan(start.changeToLocation(), destination.changeToLocation());
+        mLocationManager = TencentLocationManager.getInstance(this);
+        
+        // 解析起点和终点
+        getCoords();
+        
+        showMyMap(startPoint, destinationPoint);
+        getWalkPlan(startPoint.changeToLocation(), destinationPoint.changeToLocation());
     }
     
     protected void showMyMap(MapPoint start, MapPoint destination) {
@@ -90,13 +101,7 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         tencentMap.setInfoWindowAdapter(adapter);
         tencentMap.setCenter(start.getLatlng()); // 先设置Center会减少卡顿
         
-        tencentMap.addMarker(new MarkerOptions()
-                .position(start.getLatlng())
-                .title(start.getAddress()) // 点击时会显示
-                .tag(start)
-                .icon(BitmapDescriptorFactory.fromResource(R.drawable.navi1))
-                .draggable(true)
-                .anchor(0.5f, 0.5f));
+        addUserPoint(start);
         
         tencentMap.zoomToSpan(start.getLatlng(), destination.getLatlng());
         if (destination.getDistance() > 700) {
@@ -142,8 +147,22 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
                 int index = 0;
                 drawSolidLine(walkRoutes.get(index).polyline);
             }
+            startLocation(null);
         }
     };
+    
+    private void addUserPoint(MapPoint start) {
+        if (startMarker != null) {
+            startMarker.remove();
+        }
+        startMarker = tencentMap.addMarker(new MarkerOptions()
+                .position(start.getLatlng())
+                .title(start.getAddress())
+                // 点击时会显示
+                .tag(start)
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.navi1))
+                .draggable(true).anchor(0.5f, 0.5f));
+    }
     
     private void addWcMarker(List<CustomSearchResultData> list) {
         if (list == null || list.size() == 0) {
@@ -181,29 +200,29 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         return latLngs;
     }
     
-    protected MapPoint[] getCoords() {
+    protected void getCoords() {
         Intent intent = getIntent();
         String startStr = intent.getStringExtra("start");
         String destinationStr = intent.getStringExtra("destination");
-        MapPoint start = null;
+//        MapPoint start = null;
         if (!TextUtils.isEmpty(startStr)) {
             String[] items = startStr.split(",", 3);
             if (items.length == 3) {
-                start = new MapPoint(Float.valueOf(items[0]),Float.valueOf(items[1]), items[2]);
-                start.setName("我的位置");
+                startPoint = new MapPoint(Float.valueOf(items[0]),Float.valueOf(items[1]), items[2]);
+                startPoint.setName("我的位置");
             }
         }
-        MapPoint destination = null;
+//        MapPoint destination = null;
         if (!TextUtils.isEmpty(destinationStr)) {
             String[] items = destinationStr.split(",", 5);
             if (items.length == 5) {
-                destination = new MapPoint(Float.valueOf(items[0]),Float.valueOf(items[1]), items[4]);
-                destination.setName(items[2]);
-                destination.setDistance(Integer.parseInt(items[3]));
+                destinationPoint = new MapPoint(Float.valueOf(items[0]),Float.valueOf(items[1]), items[4]);
+                destinationPoint.setName(items[2]);
+                destinationPoint.setDistance(Integer.parseInt(items[3]));
             }
         }
-        MapPoint[] locations = {start, destination};
-        return locations;
+//        MapPoint[] locations = {start, destination};
+//        return locations;
     }
 
     @Override
@@ -228,17 +247,20 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     public void backPrePageClick(View v) {
         tencentMap = null;
         mapView = null;
+        stopLocation(null);
         ResultActivity.this.finish();
     }
     
     @Override
     public void onResume() {
+        startLocation(null);
         super.onResume();
         MobclickAgent.onResume(this);
     }
 
     @Override
     public void onPause() {
+        stopLocation(null);
         super.onPause();
         MobclickAgent.onPause(this);
     }
@@ -256,7 +278,7 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             myaddress.setText(data.getAddress());
             mydistance.setText((int)data.get_distance() + "米");
             
-            getWalkPlan(locations[0].changeToLocation(), data.getLocation());
+            getWalkPlan(startPoint.changeToLocation(), data.getLocation());
         } else if (obj instanceof MapPoint) {
             // 我的位置
             MapPoint data = (MapPoint)obj;
@@ -264,5 +286,53 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
             myaddress.setText(data.getAddress());
         } 
         return false;
+    }
+
+    @Override
+    public void onLocationChanged(TencentLocation location, int error, String reason) {
+     // 位置更新时的回调(无论位置是否发生变化都会定期执行)
+        if (error == TencentLocation.ERROR_OK) {
+            // 定位成功
+            startPoint = new MapPoint(location.getLatitude(), location.getLongitude(), location.getAddress());
+            startPoint.setName("我的位置");
+            addUserPoint(startPoint);
+        } else {
+        }
+    }
+
+    @Override
+    public void onStatusUpdate(String arg0, int arg1, String arg2) {
+        
+    }
+    
+    @Override
+    protected void onDestroy() {
+        // 退出 activity 前一定要停止定位!
+        stopLocation(null);
+        super.onDestroy();
+    }
+    
+    /**
+     * 停止定位
+     * 
+     * @param view
+     */
+    public void stopLocation(View view) {
+        mLocationManager.removeUpdates(this);
+    }
+    
+    /**
+     * 开始定位
+     * 
+     * @param view
+     */
+    public void startLocation(View view) {
+        // 创建定位请求
+        TencentLocationRequest request = TencentLocationRequest.create()
+                .setInterval(1000 * 12) // 设置定位周期
+                .setRequestLevel(mLevel); // 设置定位level
+
+        // 开始定位
+        mLocationManager.requestLocationUpdates(request, this);
     }
 }

@@ -78,8 +78,7 @@
                     android:layout_centerVertical="true"
                     android:layout_marginEnd="10dp"
                     android:layout_marginRight="10dp"
-                    android:textColor="#FE8B26" 
-                    android:text="多少米"/>
+                    android:textColor="#FE8B26" />
                 
             </RelativeLayout>
 
