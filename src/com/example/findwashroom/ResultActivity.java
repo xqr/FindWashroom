@@ -36,6 +36,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,7 +45,6 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
 
     private MapView mapView;
     private TencentMap tencentMap;
-//    private MapPoint[] locations;
     private WashroomInfoWindowAdapter adapter;
     // 路线
     private Polyline polyLine;
@@ -63,6 +63,9 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     private TextView mytitile;
     private TextView mydistance;
     
+    private ListView roadStepsListView = null;
+    private RoadStepsListAdapter listAdapter = null;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,6 +83,7 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         myaddress = (TextView)findViewById(R.id.myaddress);
         mytitile = (TextView)findViewById(R.id.mytitile);
         mydistance = (TextView)findViewById(R.id.mydistance1);
+        roadStepsListView = (ListView) findViewById(R.id.list_road_steps);
         
         mLocationManager = TencentLocationManager.getInstance(this);
         
@@ -146,6 +150,15 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
                 }
                 int index = 0;
                 drawSolidLine(walkRoutes.get(index).polyline);
+                // 显示路线
+                if (listAdapter == null) {
+                    listAdapter = new RoadStepsListAdapter(ResultActivity.this,
+                            walkRoutes.get(index).steps);
+                    roadStepsListView.setAdapter(listAdapter);
+                } else {
+                    listAdapter.setSteps(walkRoutes.get(index).steps);
+                    listAdapter.notifyDataSetChanged();
+                }
             }
             startLocation(null);
         }
@@ -204,7 +217,6 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
         Intent intent = getIntent();
         String startStr = intent.getStringExtra("start");
         String destinationStr = intent.getStringExtra("destination");
-//        MapPoint start = null;
         if (!TextUtils.isEmpty(startStr)) {
             String[] items = startStr.split(",", 3);
             if (items.length == 3) {
@@ -212,7 +224,6 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
                 startPoint.setName("我的位置");
             }
         }
-//        MapPoint destination = null;
         if (!TextUtils.isEmpty(destinationStr)) {
             String[] items = destinationStr.split(",", 5);
             if (items.length == 5) {
@@ -221,8 +232,6 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
                 destinationPoint.setDistance(Integer.parseInt(items[3]));
             }
         }
-//        MapPoint[] locations = {start, destination};
-//        return locations;
     }
 
     @Override
@@ -267,7 +276,6 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
 
     @Override
     public boolean onMarkerClick(Marker marker) {
-        // TODO Auto-generated method stub 
         Object obj = marker.getTag();
         if (obj == null) {
             return false;
