@@ -32,10 +32,18 @@ import com.tencent.tencentmap.mapsdk.map.TencentMap.OnMarkerDraggedListener;
 import com.umeng.analytics.MobclickAgent;
 import com.yhtye.findwashroom.R;
 
+import android.content.Context;
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -66,10 +74,23 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     private ListView roadStepsListView = null;
     private RoadStepsListAdapter listAdapter = null;
     
+    private SensorManager mSensorManager;
+    private Sensor accelerometer; // 加速度传感器
+    private Sensor magnetic; // 地磁场传感器
+    private float[] accelerometerValues = new float[3];
+    private float[] magneticFieldValues = new float[3];
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_result);
+     // 实例化传感器管理者
+        mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        // 初始化加速度传感器
+        accelerometer = mSensorManager
+                .getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        // 初始化地磁场传感器
+        magnetic = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         init();
     }
     
@@ -175,6 +196,8 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
                 .tag(start)
                 .icon(BitmapDescriptorFactory.fromResource(R.drawable.navi1))
                 .draggable(true).anchor(0.5f, 0.5f));
+        // 旋转坐标
+        calculateOrientation();
     }
     
     private void addWcMarker(List<CustomSearchResultData> list) {
@@ -263,6 +286,13 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     @Override
     public void onResume() {
         startLocation(null);
+        
+        // 注册监听
+        mSensorManager.registerListener(new MySensorEventListener(),
+                accelerometer, Sensor.TYPE_ACCELEROMETER);
+        mSensorManager.registerListener(new MySensorEventListener(), magnetic,
+                Sensor.TYPE_MAGNETIC_FIELD);
+        
         super.onResume();
         MobclickAgent.onResume(this);
     }
@@ -270,6 +300,9 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     @Override
     public void onPause() {
         stopLocation(null);
+        // 解除注册
+        mSensorManager.unregisterListener(new MySensorEventListener());
+        
         super.onPause();
         MobclickAgent.onPause(this);
     }
@@ -317,6 +350,8 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
     protected void onDestroy() {
         // 退出 activity 前一定要停止定位!
         stopLocation(null);
+        // 解除注册
+        mSensorManager.unregisterListener(new MySensorEventListener());
         super.onDestroy();
     }
     
@@ -342,5 +377,57 @@ public class ResultActivity extends MapActivity implements OnMarkerDraggedListen
 
         // 开始定位
         mLocationManager.requestLocationUpdates(request, this);
+    }
+    
+    @Override
+    protected void onStop() {
+        // 解除注册
+        mSensorManager.unregisterListener(new MySensorEventListener());
+        super.onStop();
+    }
+    
+    class MySensorEventListener implements SensorEventListener {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            // TODO 太频繁
+            if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                // 加速度传感器
+                accelerometerValues = event.values;
+            }
+            if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD) {
+                // 磁场传感器
+                magneticFieldValues = event.values;
+            }
+            calculateOrientation();
+        }
+ 
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            
+        }
+    }
+    private float lastOrientation = 0;
+    /**
+     *  计算方向
+     */
+    private void calculateOrientation() {
+        float[] values = new float[3];
+        float[] R = new float[9];
+        SensorManager.getRotationMatrix(R, null, accelerometerValues,
+                magneticFieldValues);
+        SensorManager.getOrientation(R, values);
+        values[0] = (float) Math.toDegrees(values[0]);
+        
+        if (Math.abs(lastOrientation - values[0]) < 20) {
+            return;
+        }
+        
+        Animation rotateAnimation=new RotateAnimation(lastOrientation, values[0], 
+                Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.8f);
+        rotateAnimation.setDuration(100);//设置动画持续时间
+        rotateAnimation.setFillAfter(true);//设置动画结束后保持当前的位置（即不返回到动画开始前的位置）
+        startMarker.getMarkerView().startAnimation(rotateAnimation);
+        
+        lastOrientation = values[0];
     }
 }

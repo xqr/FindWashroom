@@ -3,6 +3,8 @@ package com.example.findwashroom;
 import java.lang.ref.WeakReference;
 import java.util.List;
 
+import com.baidu.mobads.AdSettings;
+import com.baidu.mobads.AdView;
 import com.example.findwashroom.entity.CustomSearchResultData;
 import com.tencent.lbssearch.MapSearchService;
 
@@ -22,11 +24,11 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-//import android.text.TextUtils;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 public class MainActivity extends BaseActivity implements TencentLocationListener, OnItemClickListener {
@@ -44,6 +46,9 @@ public class MainActivity extends BaseActivity implements TencentLocationListene
     private Handler handler = null;
     private ProgressDialog progressDialog = null;
     
+    // 广告
+    private AdView adView;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,6 +65,8 @@ public class MainActivity extends BaseActivity implements TencentLocationListene
         
         mLocationManager = TencentLocationManager.getInstance(this);
         startLocation(null);
+        // 加载广告
+        initAd();
     }
 
     private void initView() {
@@ -69,6 +76,19 @@ public class MainActivity extends BaseActivity implements TencentLocationListene
         
         washroomListView = (ListView) findViewById(R.id.list_washroom_line);
         handler = new ResultHandler(this);
+    }
+    
+    private void initAd() {
+        
+         // 人群属性
+         AdSettings.setKey(new String[] { "baidu", "中 国 " });
+         
+         // 创建广告View
+         String adPlaceId = "2420110"; // 重要：不填写代码位id不能出广告
+         adView = new AdView(this, adPlaceId);
+         
+         RelativeLayout baiduguanggaolayout = (RelativeLayout) findViewById(R.id.baiduguanggao);
+         baiduguanggaolayout.addView(adView);
     }
     
     @Override
@@ -100,6 +120,9 @@ public class MainActivity extends BaseActivity implements TencentLocationListene
     
     @Override
     protected void onDestroy() {
+        if (adView != null) {
+            adView.destroy();
+        }
         // 退出 activity 前一定要停止定位!
         stopLocation(null);
         super.onDestroy();

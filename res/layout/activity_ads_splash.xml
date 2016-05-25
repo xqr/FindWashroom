@@ -1,0 +1,37 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical"
+    android:background="#F5F5F5"
+    tools:context="com.yhtye.shanghaishishigongjiaochaxun.SplashActivity" >
+
+    <ImageView
+        android:id="@+id/qidongtitle"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:src="@drawable/qidonglogo" />
+    
+    <RelativeLayout 
+        android:id="@+id/adsRl" 
+        android:layout_above="@+id/qidongtitle"
+        android:layout_height="wrap_content" 
+        android:layout_width="fill_parent" />
+    
+    <TextView 
+        android:id="@+id/splash_title"
+        android:layout_height="wrap_content" 
+        android:layout_width="wrap_content" 
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true" 
+        android:layout_marginTop="10dp" 
+        android:layout_marginRight="10dp"
+        android:layout_marginEnd="10dp"
+        android:textColor="@color/black"
+        android:clickable="true"
+        android:text="3s|跳过"
+        android:onClick="skipAdsClick"/>
+    
+</RelativeLayout>
